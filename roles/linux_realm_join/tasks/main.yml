@@ -1,0 +1,115 @@
+---
+# Une un Linux (Debian) al dominio con realmd + SSSD y habilita el login
+# por SSH de los usuarios de los grupos ad_linux_login_groups
+- name: Instalar paquetes
+  ansible.builtin.apt:
+    name:
+      - realmd
+      - sssd
+      - sssd-tools
+      - libnss-sss
+      - libpam-sss
+      - adcli
+      - krb5-user
+      - chrony
+      - qemu-guest-agent
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Arrancar el guest agent de QEMU
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+    enabled: true
+
+# Kerberos falla si el reloj difiere más de 5 minutos del de los DCs
+- name: Sincronizar la hora con los DCs
+  ansible.builtin.template:
+    src: ad.sources.j2
+    dest: /etc/chrony/sources.d/ad.sources
+    mode: "0644"
+  notify: Recargar fuentes de chrony
+
+- name: Configurar Kerberos
+  ansible.builtin.template:
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    mode: "0644"
+
+- name: Ver si ya está unido al dominio
+  ansible.builtin.command: realm list --name-only
+  register: realm_list
+  changed_when: false
+
+- name: Unirse a {{ ad_domain }}
+  ansible.builtin.command:
+    argv:
+      - realm
+      - join
+      - --membership-software=adcli
+      - --client-software=sssd
+      - "--computer-ou={{ ad_computer_ou }}"
+      - "--user={{ ad_join_user }}"
+      - "{{ ad_domain }}"
+    stdin: "{{ ad_join_password }}"
+  when: ad_domain not in realm_list.stdout_lines
+  no_log: true
+
+# Ajustes sobre el sssd.conf que genera realm join
+- name: Configurar SSSD
+  community.general.ini_file:
+    path: /etc/sssd/sssd.conf
+    section: "domain/{{ ad_domain }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    mode: "0600"
+  loop:
+    # Entrar como "ana.garcia" en lugar de "ana.garcia@lab.internal"
+    - { option: use_fully_qualified_names, value: "False" }
+    - { option: fallback_homedir, value: /home/%u }
+    # Solo pueden entrar los grupos permitidos
+    - { option: access_provider, value: simple }
+    - { option: simple_allow_groups, value: "{{ ad_linux_login_groups | join(', ') }}" }
+  loop_control:
+    label: "{{ item.option }}"
+  notify: Reiniciar SSSD
+
+- name: Crear el home en el primer login
+  ansible.builtin.shell: |
+    if grep -q pam_mkhomedir /etc/pam.d/common-session; then
+      echo unchanged
+    else
+      pam-auth-update --enable mkhomedir
+    fi
+  register: mkhomedir
+  changed_when: "'unchanged' not in mkhomedir.stdout"
+
+- name: Sudo para los grupos de administradores
+  ansible.builtin.template:
+    src: sudoers.j2
+    dest: /etc/sudoers.d/ad-admins
+    mode: "0440"
+    validate: visudo -cf %s
+
+# Los usuarios de dominio no tienen clave SSH: entran con contraseña (o con
+# Kerberos desde un equipo del dominio). sysadmin no tiene contraseña, sigue
+# entrando solo con clave.
+- name: Permitir login SSH con contraseña y Kerberos
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-ad.conf
+    content: |
+      # Gestionado por Ansible (linux_realm_join)
+      PasswordAuthentication yes
+      KbdInteractiveAuthentication yes
+      GSSAPIAuthentication yes
+      GSSAPICleanupCredentials yes
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Recargar SSH
+
+- name: SSSD activo
+  ansible.builtin.service:
+    name: sssd
+    state: started
+    enabled: true

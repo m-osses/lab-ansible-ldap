@@ -1,0 +1,14 @@
+---
+# WinRM por HTTP (5985) con NTLM: NTLM cifra los mensajes, así que la contraseña
+# no viaja en claro. Es el listener que deja la plantilla de Packer.
+ansible_connection: winrm
+ansible_port: 5985
+ansible_winrm_scheme: http
+ansible_winrm_transport: ntlm
+# Tras crear el dominio, "Administrator" pasa a ser el administrador del dominio,
+# con la misma contraseña (la heredó del Administrator local de dc01)
+ansible_user: Administrator
+ansible_password: "{{ windows_admin_password }}"
+# La promoción a DC y los reinicios tardan
+ansible_winrm_operation_timeout_sec: 120
+ansible_winrm_read_timeout_sec: 150

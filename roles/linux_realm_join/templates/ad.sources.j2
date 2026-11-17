@@ -1,0 +1,4 @@
+# Gestionado por Ansible: los DCs como fuente de hora
+{% for ip in ad_dc_ips %}
+server {{ ip }} iburst
+{% endfor %}

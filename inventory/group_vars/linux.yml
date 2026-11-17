@@ -1,0 +1,5 @@
+---
+# Usuario que crea cloud-init (Terraform), con sudo sin contraseña
+ansible_user: sysadmin
+ansible_ssh_private_key_file: ~/.ssh/homelab
+ansible_become: true

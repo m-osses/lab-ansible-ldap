@@ -1,0 +1,8 @@
+---
+# Adonde reenvían los DCs las consultas de nombres que no son del dominio
+ad_dns_forwarders:
+  - 1.1.1.1
+  - 9.9.9.9
+
+# Fuente de hora del DC con el rol PDC (el resto del dominio sincroniza contra él)
+ad_ntp_peers: "0.pool.ntp.org 1.pool.ntp.org"

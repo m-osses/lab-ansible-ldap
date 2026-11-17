@@ -1,0 +1,23 @@
+---
+# Promueve un servidor como DC adicional del dominio existente (grupo dc_replicas)
+- name: Usar el DC primario como DNS para encontrar el dominio
+  ansible.windows.win_dns_client:
+    adapter_names: "*"
+    dns_servers: "{{ groups['dc_primary'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+- name: Instalar el rol de AD DS
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+    state: present
+
+- name: Promover a controlador de dominio de {{ ad_domain }}
+  microsoft.ad.domain_controller:
+    dns_domain_name: "{{ ad_domain }}"
+    domain_admin_user: "Administrator@{{ ad_domain }}"
+    domain_admin_password: "{{ windows_admin_password }}"
+    safe_mode_password: "{{ ad_safe_mode_password }}"
+    install_dns: true
+    state: domain_controller
+    reboot: true
+  no_log: true

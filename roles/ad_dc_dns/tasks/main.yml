@@ -1,0 +1,42 @@
+---
+# DNS y hora de los DCs, una vez que todos existen
+- name: DNS del DC, primero el otro DC y después él mismo
+  ansible.windows.win_dns_client:
+    adapter_names: "*"
+    dns_servers: "{{ (ad_dc_ips | difference([ansible_host])) + ['127.0.0.1'] }}"
+
+- name: Reenviadores DNS para nombres de fuera del dominio
+  ansible.windows.win_powershell:
+    parameters:
+      Forwarders: "{{ ad_dns_forwarders }}"
+    script: |
+      param([string[]]$Forwarders)
+      $current = @((Get-DnsServerForwarder).IPAddress | ForEach-Object { $_.IPAddressToString })
+      if (Compare-Object -ReferenceObject $current -DifferenceObject $Forwarders -SyncWindow 0) {
+          Set-DnsServerForwarder -IPAddress $Forwarders
+          $Ansible.Changed = $true
+      } else {
+          $Ansible.Changed = $false
+      }
+
+# El DC con el rol PDC es la fuente de hora del dominio; Kerberos falla si los
+# relojes difieren más de 5 minutos
+- name: Fuente de hora externa en el PDC
+  ansible.windows.win_powershell:
+    parameters:
+      Peers: "{{ ad_ntp_peers }}"
+    script: |
+      param([string]$Peers)
+      $pdc = (Get-ADDomain).PDCEmulator
+      if ($pdc -notlike "$env:COMPUTERNAME.*") {
+          $Ansible.Changed = $false
+          return
+      }
+      $current = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters').NtpServer
+      if ($current -ne $Peers) {
+          w32tm /config /manualpeerlist:"$Peers" /syncfromflags:manual /reliable:yes /update | Out-Null
+          Restart-Service w32time
+          $Ansible.Changed = $true
+      } else {
+          $Ansible.Changed = $false
+      }

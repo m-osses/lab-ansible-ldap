@@ -1,0 +1,39 @@
+---
+# Objetos del dominio. Se crean en orden: una OU tiene que ir después de su padre.
+ad_base_ou: "OU=Lab,{{ ad_domain_dn }}"
+
+ad_ous:
+  - name: Lab
+    path: "{{ ad_domain_dn }}"
+  - name: Users
+    path: "{{ ad_base_ou }}"
+  - name: Groups
+    path: "{{ ad_base_ou }}"
+  - name: Servers
+    path: "{{ ad_base_ou }}"
+
+ad_groups:
+  - name: linux-users
+    description: Pueden entrar por SSH a los Linux del dominio
+    path: "OU=Groups,{{ ad_base_ou }}"
+  - name: linux-admins
+    description: Pueden entrar por SSH a los Linux y usar sudo
+    path: "OU=Groups,{{ ad_base_ou }}"
+
+# Todos arrancan con ad_users_initial_password (terraform output).
+# Cambiar la contraseña después no la pisa: solo se fija al crear el usuario.
+ad_users:
+  - name: ana.garcia
+    firstname: Ana
+    surname: Garcia
+    groups: [linux-admins]
+  - name: bruno.diaz
+    firstname: Bruno
+    surname: Diaz
+    groups: [linux-users]
+  - name: carla.ruiz
+    firstname: Carla
+    surname: Ruiz
+    groups: []
+
+ad_users_path: "OU=Users,{{ ad_base_ou }}"

@@ -1,0 +1,14 @@
+---
+# OU donde realm join crea las cuentas de equipo (la crea el playbook ad.yml)
+ad_computer_ou: "OU=Servers,OU=Lab,{{ ad_domain_dn }}"
+
+# Cuenta con permiso para unir equipos al dominio
+ad_join_user: Administrator
+ad_join_password: "{{ windows_admin_password }}"
+
+# Grupos de AD que pueden entrar por SSH, y cuáles de ellos tienen sudo
+ad_linux_login_groups:
+  - linux-users
+  - linux-admins
+ad_linux_sudo_groups:
+  - linux-admins

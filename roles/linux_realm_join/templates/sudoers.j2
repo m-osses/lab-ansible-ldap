@@ -1,0 +1,4 @@
+# Gestionado por Ansible: grupos de AD con sudo (pide la contraseña del dominio)
+{% for group in ad_linux_sudo_groups %}
+%{{ group }} ALL=(ALL:ALL) ALL
+{% endfor %}

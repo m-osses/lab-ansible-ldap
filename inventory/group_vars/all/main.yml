@@ -1,0 +1,16 @@
+---
+# Tiene que coincidir con la variable ad_domain del repo de Terraform
+ad_domain: lab.internal
+ad_netbios_name: LAB
+
+# lab.internal -> DC=lab,DC=internal
+ad_domain_dn: "DC={{ ad_domain.split('.') | join(',DC=') }}"
+ad_realm: "{{ ad_domain | upper }}"
+
+# IPs de los DCs, sacadas del inventario (DNS y NTP de los Linux)
+ad_dc_ips: "{{ groups['dcs'] | map('extract', hostvars, 'ansible_host') | list }}"
+
+# Contraseñas: vienen de terraform output, cifradas en vault.yml
+windows_admin_password: "{{ vault_windows_admin_password }}"
+ad_safe_mode_password: "{{ vault_ad_safe_mode_password }}"
+ad_users_initial_password: "{{ vault_ad_users_initial_password }}"

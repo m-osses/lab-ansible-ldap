@@ -1,0 +1,6 @@
+---
+# Linux unidos al dominio (SSH). Requiere que ad.yml ya haya corrido.
+- name: Unir los Linux al dominio
+  hosts: domain_members
+  roles:
+    - linux_realm_join

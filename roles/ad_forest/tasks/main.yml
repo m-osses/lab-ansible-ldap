@@ -1,0 +1,16 @@
+---
+# Crea el bosque y el dominio en el primer DC (grupo dc_primary)
+- name: Instalar el rol de AD DS
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+    state: present
+
+- name: Crear el bosque {{ ad_domain }}
+  microsoft.ad.domain:
+    dns_domain_name: "{{ ad_domain }}"
+    domain_netbios_name: "{{ ad_netbios_name }}"
+    safe_mode_password: "{{ ad_safe_mode_password }}"
+    install_dns: true
+    reboot: true
+  no_log: true

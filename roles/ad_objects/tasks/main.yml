@@ -1,0 +1,42 @@
+---
+# OUs, grupos y usuarios (inventory/group_vars/dcs/objects.yml).
+# Se ejecuta en un solo DC: AD los replica al resto.
+- name: Crear OUs
+  microsoft.ad.ou:
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+    state: present
+  loop: "{{ ad_ous }}"
+  loop_control:
+    label: "OU={{ item.name }},{{ item.path }}"
+
+- name: Crear grupos
+  microsoft.ad.group:
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(omit) }}"
+    path: "{{ item.path }}"
+    scope: global
+    category: security
+    state: present
+  loop: "{{ ad_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Crear usuarios
+  microsoft.ad.user:
+    name: "{{ item.name }}"
+    sam_account_name: "{{ item.name }}"
+    upn: "{{ item.name }}@{{ ad_domain }}"
+    firstname: "{{ item.firstname }}"
+    surname: "{{ item.surname }}"
+    display_name: "{{ item.firstname }} {{ item.surname }}"
+    path: "{{ ad_users_path }}"
+    password: "{{ ad_users_initial_password }}"
+    update_password: on_create
+    enabled: true
+    groups:
+      add: "{{ item.groups | default([]) }}"
+    state: present
+  loop: "{{ ad_users }}"
+  loop_control:
+    label: "{{ item.name }}"

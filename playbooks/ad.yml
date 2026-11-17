@@ -1,0 +1,26 @@
+---
+# Dominio de Active Directory en los DCs (WinRM)
+- name: Crear el bosque en el DC primario
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - ad_forest
+
+- name: Promover los DCs adicionales
+  hosts: dc_replicas
+  gather_facts: false
+  serial: 1
+  roles:
+    - ad_dc_promote
+
+- name: DNS y hora de los DCs
+  hosts: dcs
+  gather_facts: false
+  roles:
+    - ad_dc_dns
+
+- name: OUs, grupos y usuarios
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - ad_objects

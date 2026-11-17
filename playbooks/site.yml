@@ -1,0 +1,7 @@
+---
+# Todo el lab, en orden
+- name: Active Directory
+  ansible.builtin.import_playbook: ad.yml
+
+- name: Linux
+  ansible.builtin.import_playbook: linux.yml
