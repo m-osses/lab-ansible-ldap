@@ -17,11 +17,19 @@
     update_cache: true
     cache_valid_time: 3600
 
+# El servicio necesita el puerto virtio que Proxmox agrega solo con el agente
+# activado en la VM (agent.enabled en Terraform). Sin él, el arranque falla.
+- name: Ver si la VM tiene el puerto del guest agent
+  ansible.builtin.stat:
+    path: /dev/virtio-ports/org.qemu.guest_agent.0
+  register: qemu_ga_port
+
 - name: Arrancar el guest agent de QEMU
   ansible.builtin.service:
     name: qemu-guest-agent
     state: started
     enabled: true
+  when: qemu_ga_port.stat.exists
 
 # Kerberos falla si el reloj difiere más de 5 minutos del de los DCs
 - name: Sincronizar la hora con los DCs
@@ -47,6 +55,10 @@
     argv:
       - realm
       - join
+      # Los paquetes los instala la primera tarea. Sin esto realmd los verifica
+      # con PackageKit, que la imagen cloud de Debian no trae, y falla con
+      # "Necessary packages are not installed" aunque estén instalados.
+      - --install=/
       - --membership-software=adcli
       - --client-software=sssd
       - "--computer-ou={{ ad_computer_ou }}"
