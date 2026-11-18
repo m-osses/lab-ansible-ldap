@@ -38,5 +38,7 @@ vault_ad_safe_mode_password: "$dsrm"
 vault_ad_users_initial_password: "$users"
 EOF
 
-ansible-vault encrypt --vault-password-file "$vault_pass" --output "$vault_file" "$plain"
+# --encrypt-vault-id: si se corre desde el repo, ansible.cfg también aporta .vault_pass
+ansible-vault encrypt --vault-id "default@$vault_pass" --encrypt-vault-id default \
+    --output "$vault_file" "$plain"
 echo "Actualizado $vault_file"

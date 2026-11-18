@@ -1,5 +1,7 @@
 # Contraseña de ansible-vault
 .vault_pass
+# Contraseñas cifradas: se regeneran desde terraform output (scripts/terraform-secrets.sh)
+inventory/group_vars/all/vault.yml
 
 *.retry
 __pycache__/
