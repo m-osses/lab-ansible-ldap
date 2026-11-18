@@ -1,0 +1,42 @@
+---
+# Pone el hostname del inventario (dc01, dc02...). Lo debería aplicar Cloudbase-Init
+# desde Terraform, pero si no lo hizo, el dominio no se puede armar: dos servidores
+# con el mismo nombre no pueden ser DCs del mismo dominio.
+- name: Leer el nombre actual y si ya es controlador de dominio
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      [pscustomobject]@{
+          name = $env:COMPUTERNAME
+          # 4 = DC de backup, 5 = DC primario
+          is_dc = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
+      }
+  register: windows_hostname_current
+  check_mode: false  # solo lee: también en --check
+
+- name: Datos del host
+  ansible.builtin.set_fact:
+    windows_hostname_wanted: "{{ inventory_hostname | upper }}"
+    windows_hostname_actual: "{{ windows_hostname_current.output[0].name | upper }}"
+    windows_hostname_is_dc: "{{ windows_hostname_current.output[0].is_dc }}"
+
+# Renombrar un DC con Rename-Computer rompe DNS y SPNs del dominio
+- name: No renombrar un servidor que ya es DC
+  ansible.builtin.assert:
+    that: windows_hostname_actual == windows_hostname_wanted or not windows_hostname_is_dc
+    fail_msg: >-
+      {{ inventory_hostname }} ya es controlador de dominio pero se llama
+      {{ windows_hostname_actual }}, no {{ windows_hostname_wanted }}. No se renombra
+      automáticamente: recrear la VM con Terraform, o renombrarlo a mano con
+      "netdom computername" (/add, /makeprimary, reiniciar, /remove).
+    quiet: true
+
+- name: Cambiar el hostname a {{ windows_hostname_wanted }}
+  ansible.windows.win_hostname:
+    name: "{{ windows_hostname_wanted }}"
+  register: windows_hostname_set
+
+- name: Reiniciar para aplicar el nombre
+  ansible.windows.win_reboot:
+    reboot_timeout: 900
+  when: windows_hostname_set.reboot_required

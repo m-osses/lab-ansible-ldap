@@ -11,6 +11,43 @@
     include_management_tools: true
     state: present
 
+# Un clon de una plantilla sin generalizar (sysprep) tiene el mismo SID de máquina
+# que el DC primario, que al crear el bosque pasó a ser el SID del dominio. La
+# promoción falla entonces con un engañoso "The user name or password is incorrect".
+- name: Leer el SID de máquina
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      $isDc = (Get-CimInstance Win32_ComputerSystem).DomainRole -ge 4
+      [pscustomobject]@{
+          is_dc = $isDc
+          # En un DC no hay cuentas locales; ahí ya no hace falta comprobarlo
+          machine_sid = if ($isDc) { $null } else { (Get-LocalUser Administrator).SID.Value -replace '-500$', '' }
+      }
+  register: ad_dc_promote_local
+  check_mode: false  # solo lee: también en --check
+
+- name: Leer el SID del dominio
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      (Get-ADDomain).DomainSID.Value
+  delegate_to: "{{ groups['dc_primary'][0] }}"
+  run_once: true
+  register: ad_dc_promote_domain
+  check_mode: false
+  when: not ad_dc_promote_local.output[0].is_dc
+
+- name: Comprobar que el SID de máquina no es el del dominio
+  ansible.builtin.assert:
+    that: ad_dc_promote_local.output[0].machine_sid != ad_dc_promote_domain.output[0]
+    fail_msg: >-
+      {{ inventory_hostname }} tiene el mismo SID de máquina que el dominio
+      ({{ ad_dc_promote_domain.output[0] }}): la plantilla de Windows no se generalizó
+      con sysprep. Hay que reconstruirla con Packer y recrear los DCs; Ansible no lo puede arreglar.
+    quiet: true
+  when: not ad_dc_promote_local.output[0].is_dc
+
 - name: Promover a controlador de dominio de {{ ad_domain }}
   microsoft.ad.domain_controller:
     dns_domain_name: "{{ ad_domain }}"

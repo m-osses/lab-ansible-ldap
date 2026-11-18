@@ -1,5 +1,11 @@
 ---
 # Dominio de Active Directory en los DCs (WinRM)
+- name: Hostname de los DCs
+  hosts: dcs
+  gather_facts: false
+  roles:
+    - windows_hostname
+
 - name: Crear el bosque en el DC primario
   hosts: dc_primary
   gather_facts: false

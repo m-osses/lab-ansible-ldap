@@ -24,6 +24,7 @@ Configuración con Ansible del lab de Active Directory que crea [terraform-homes
 │       ├── dcs/objects.yml           # OUs, grupos y usuarios del dominio
 │       └── domain_members.yml        # OU de equipos, grupos con login y con sudo
 ├── roles/
+│   ├── windows_hostname/             # nombre del inventario (dc01, dc02) si Cloudbase-Init no lo puso
 │   ├── ad_forest/                    # crea el bosque (dc_primary)
 │   ├── ad_dc_promote/                # DCs adicionales (dc_replicas)
 │   ├── ad_dc_dns/                    # DNS cruzado, reenviadores y hora
@@ -154,6 +155,7 @@ Para uno solo: `ansible-playbook playbooks/linux.yml --limit linux01`.
 
 ### Dominio (`ad.yml`)
 
+0. **Los dos DCs**: si el hostname no es el del inventario (`dc01`, `dc02`), lo cambia y reinicia. Si el servidor ya es DC con otro nombre, falla y no lo toca: renombrar un DC rompe DNS y SPNs.
 1. **dc01**: instala AD DS y crea el bosque `lab.internal` (NetBIOS `LAB`) con DNS integrado. Reinicia.
 2. **dc02**: usa dc01 como DNS, se promueve como DC adicional (con DNS). Reinicia.
 3. **Los dos DCs**: DNS del cliente apuntando al otro DC y después a sí mismo, reenviadores `1.1.1.1` y `9.9.9.9`. El que tiene el rol PDC toma la hora de `pool.ntp.org`.
@@ -197,6 +199,7 @@ Este código **no se probó todavía contra el lab**.
 |---|---|
 | `win_ping` falla con error de autenticación | `vault.yml` desactualizado tras recrear el lab: volver a correr el script |
 | `ntlm: auth method ntlm requires a password` / módulo `winrm` no encontrado | Falta pywinrm en el Python que usa Ansible |
+| Falla "mismo SID de máquina que el dominio", o la promoción de dc02 da "The user name or password is incorrect" | La plantilla de Packer no se generalizó con sysprep: todos los clones comparten SID (y hostname). Reconstruir la plantilla y recrear los DCs |
 | La promoción de dc02 no encuentra el dominio | dc01 todavía no terminó de arrancar los servicios de AD tras el reinicio: esperar y repetir |
 | `realm join` falla con "Couldn't connect to domain" | Los Linux no resuelven `lab.internal`: revisar `/etc/resolv.conf` (tienen que ser los DCs) |
 | `realm join` falla con error de Kerberos o de reloj | Hora desincronizada: `chronyc sources` en el Linux, `w32tm /query /status` en el DC |
