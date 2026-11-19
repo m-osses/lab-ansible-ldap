@@ -1,0 +1,16 @@
+---
+# Grupos que pueden entrar por SSH (AllowGroups). El resto se rechaza aunque
+# tenga contraseña o clave válidas.
+ssh_allow_groups:
+  - sysadmin
+
+# IPs que fail2ban nunca banea. Además de localhost hay que incluir la IP con la
+# que llegan las conexiones de fuera del lab: si se banea, nadie entra.
+fail2ban_ignoreip: []
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+
+# Puertos TCP abiertos en el firewall (todo lo demás entrante se descarta)
+firewall_allowed_tcp_ports:
+  - 22

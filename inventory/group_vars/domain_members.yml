@@ -12,3 +12,6 @@ ad_linux_login_groups:
   - linux-admins
 ad_linux_sudo_groups:
   - linux-admins
+
+# sshd AllowGroups: el usuario local de Ansible más los grupos de AD con login
+ssh_allow_groups: "{{ ['sysadmin'] + ad_linux_login_groups }}"

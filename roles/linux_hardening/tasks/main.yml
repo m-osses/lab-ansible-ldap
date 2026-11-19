@@ -1,0 +1,79 @@
+---
+# Buenas prácticas de seguridad para los Linux (Debian): SSH, fail2ban,
+# firewall, parámetros del kernel y actualizaciones de seguridad automáticas.
+- name: Instalar paquetes
+  ansible.builtin.apt:
+    name:
+      - fail2ban
+      - python3-systemd   # fail2ban lee los logs de journald (Debian 13 no trae auth.log)
+      - nftables
+      - unattended-upgrades
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# --- SSH --------------------------------------------------------------------
+# sshd usa el primer valor que encuentra: este archivo no repite opciones de
+# 10-ad.conf (login con contraseña y Kerberos, del rol linux_realm_join).
+- name: Endurecer SSH
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/05-hardening.conf
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Recargar SSH
+
+# --- Firewall ---------------------------------------------------------------
+- name: Reglas del firewall
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: "0644"
+    validate: nft -c -f %s
+  notify: Recargar firewall
+
+- name: Firewall activo al arrancar
+  ansible.builtin.service:
+    name: nftables
+    state: started
+    enabled: true
+
+# --- fail2ban ---------------------------------------------------------------
+- name: Configurar fail2ban para SSH
+  ansible.builtin.template:
+    src: fail2ban-sshd.local.j2
+    dest: /etc/fail2ban/jail.d/sshd.local
+    mode: "0644"
+  notify: Reiniciar fail2ban
+
+- name: Probar la configuración de fail2ban
+  ansible.builtin.command: fail2ban-client --test
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: fail2ban activo
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+# --- Kernel -----------------------------------------------------------------
+- name: Parámetros de seguridad del kernel
+  ansible.builtin.template:
+    src: sysctl-hardening.conf.j2
+    dest: /etc/sysctl.d/90-hardening.conf
+    mode: "0644"
+  notify: Aplicar sysctl
+
+# --- Actualizaciones --------------------------------------------------------
+# El 50unattended-upgrades de Debian ya limita a las actualizaciones de
+# seguridad y no reinicia solo; esto solo lo activa.
+- name: Actualizaciones de seguridad automáticas
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      // Gestionado por Ansible (linux_hardening)
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    mode: "0644"

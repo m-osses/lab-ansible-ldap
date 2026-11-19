@@ -3,3 +3,8 @@
 ansible_user: sysadmin
 ansible_ssh_private_key_file: ~/.ssh/homelab
 ansible_become: true
+
+# Las conexiones desde fuera del lab (Tailscale) llegan con la IP del Proxmox,
+# que hace SNAT. Si fail2ban la banea, nadie (ni Ansible) puede entrar.
+fail2ban_ignoreip:
+  - 10.10.30.1

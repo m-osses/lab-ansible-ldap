@@ -1,0 +1,30 @@
+# Gestionado por Ansible (linux_hardening)
+
+# Acceso
+PermitRootLogin no
+AllowGroups {{ ssh_allow_groups | join(' ') }}
+PermitEmptyPasswords no
+PermitUserEnvironment no
+MaxAuthTries 3
+LoginGraceTime 30
+MaxStartups 10:30:60
+
+# Sesiones inactivas: se cortan a los 10 minutos sin respuesta
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# Funciones que no se usan en el lab
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+
+# Registra la huella de la clave con la que entra cada usuario
+LogLevel VERBOSE
+
+# Solo algoritmos modernos (OpenSSH 10). mlkem768x25519 es resistente a computación cuántica.
+KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+HostKeyAlgorithms ssh-ed25519,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,rsa-sha2-512,rsa-sha2-256
+PubkeyAcceptedAlgorithms ssh-ed25519,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,rsa-sha2-512,rsa-sha2-256

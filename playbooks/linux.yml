@@ -1,5 +1,11 @@
 ---
-# Linux unidos al dominio (SSH). Requiere que ad.yml ya haya corrido.
+# Servidores Linux (SSH)
+- name: Seguridad básica de los Linux
+  hosts: linux
+  roles:
+    - linux_hardening
+
+# Requiere que ad.yml ya haya corrido
 - name: Unir los Linux al dominio
   hosts: domain_members
   roles:

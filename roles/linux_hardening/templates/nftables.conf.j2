@@ -1,0 +1,29 @@
+#!/usr/sbin/nft -f
+# Gestionado por Ansible (linux_hardening)
+# Sin "flush ruleset": solo se reemplaza esta tabla, así no se borra la de fail2ban.
+table inet filter
+delete table inet filter
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        iif lo accept
+        ct state established,related accept
+        ct state invalid drop
+
+        # ping y mensajes de control (IPv6 no funciona sin ICMPv6)
+        ip protocol icmp accept
+        ip6 nexthdr ipv6-icmp accept
+
+        tcp dport { {{ firewall_allowed_tcp_ports | join(', ') }} } accept
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}

@@ -5,7 +5,7 @@ Configuración con Ansible del lab de Active Directory que crea [terraform-homes
 | Playbook | Hosts | Conexión | Qué hace |
 |---|---|---|---|
 | `playbooks/ad.yml` | dc01, dc02 | WinRM (NTLM) | Bosque `lab.internal`, promoción de dc02, DNS/hora, OUs, grupos y usuarios |
-| `playbooks/linux.yml` | linux01, linux02 | SSH (`sysadmin`) | `realm join` con realmd + SSSD, login SSH y sudo para grupos de AD |
+| `playbooks/linux.yml` | linux01, linux02 | SSH (`sysadmin`) | Hardening (SSH, fail2ban, firewall, kernel, updates) y `realm join` con realmd + SSSD, login SSH y sudo para grupos de AD |
 | `playbooks/site.yml` | todos | | Los dos en orden |
 
 ## Estructura
@@ -19,16 +19,17 @@ Configuración con Ansible del lab de Active Directory que crea [terraform-homes
 │       ├── all/main.yml              # dominio, IPs de los DCs, alias de las contraseñas
 │       ├── all/vault.yml             # contraseñas cifradas (lo genera el script)
 │       ├── windows.yml               # conexión WinRM
-│       ├── linux.yml                 # conexión SSH
+│       ├── linux.yml                 # conexión SSH, IPs que fail2ban no banea
 │       ├── dcs/dns.yml               # reenviadores DNS y NTP del PDC
 │       ├── dcs/objects.yml           # OUs, grupos y usuarios del dominio
-│       └── domain_members.yml        # OU de equipos, grupos con login y con sudo
+│       └── domain_members.yml        # OU de equipos, grupos con login, sudo y AllowGroups de SSH
 ├── roles/
 │   ├── windows_hostname/             # nombre del inventario (dc01, dc02) si Cloudbase-Init no lo puso
 │   ├── ad_forest/                    # crea el bosque (dc_primary)
 │   ├── ad_dc_promote/                # DCs adicionales (dc_replicas)
 │   ├── ad_dc_dns/                    # DNS cruzado, reenviadores y hora
 │   ├── ad_objects/                   # OUs, grupos, usuarios
+│   ├── linux_hardening/              # todos los Linux: SSH, fail2ban, nftables, sysctl, updates
 │   └── linux_realm_join/             # join, SSSD, Kerberos, chrony, sudo, sshd
 ├── playbooks/  ad.yml, linux.yml, site.yml
 └── scripts/terraform-secrets.sh      # terraform output -> vault.yml
@@ -171,7 +172,32 @@ DC=lab,DC=internal
 
 Para agregar usuarios o grupos se edita `inventory/group_vars/dcs/objects.yml` y se vuelve a correr `ad.yml`. La contraseña de un usuario solo se fija al crearlo; las corridas siguientes no la pisan.
 
-### Linux (`linux.yml`)
+### Seguridad de los Linux (`linux.yml`, rol `linux_hardening`)
+
+Se aplica a **todos** los Linux (grupo `linux`), estén o no en el dominio, antes del join. El detalle (variables, por qué cada valor, cómo verificar y revertir) está en [roles/linux_hardening/README.md](roles/linux_hardening/README.md).
+
+| Qué | Cómo |
+|---|---|
+| **SSH** (`/etc/ssh/sshd_config.d/05-hardening.conf`) | Sin login de root, `AllowGroups` (solo `sysadmin` y los grupos de AD con login), `MaxAuthTries 3`, sesiones inactivas cortadas a los 10 min, sin X11/agent/TCP forwarding, `LogLevel VERBOSE`, solo algoritmos modernos (incluye `mlkem768x25519`, post-cuántico) |
+| **fail2ban** | Jail `sshd` en modo `aggressive`, leyendo de journald. 5 fallos en 10 min → baneo de 1 h, que se duplica con cada reincidencia (máx. 1 semana). Banea con nftables |
+| **Firewall** (nftables) | Entrante: todo descartado salvo SSH (22), ICMP y conexiones ya establecidas. Saliente libre (DNS, Kerberos, LDAP, NTP hacia los DCs) |
+| **Kernel** (`/etc/sysctl.d/90-hardening.conf`) | Sin redirecciones ICMP ni source routing, `rp_filter`, SYN cookies, `kptr_restrict`, `dmesg_restrict`, `ptrace_scope`, BPF restringido, protección de enlaces en `/tmp` |
+| **Actualizaciones** | `unattended-upgrades` diario, solo de seguridad y sin reinicio automático |
+
+**Ojo con fail2ban y Tailscale:** las conexiones desde fuera del lab llegan con la IP del Proxmox (`10.10.30.1`), porque hace SNAT del tráfico de Tailscale. Esa IP está en `fail2ban_ignoreip` (`group_vars/linux.yml`): si se baneara, nadie podría entrar, ni Ansible. Por eso fail2ban solo frena ataques desde **dentro** de las redes del lab (otra VM comprometida). El acceso desde fuera lo controla Tailscale. Para que fail2ban vea la IP real de Tailscale habría que desactivar el SNAT en el Proxmox (`tailscale set --snat-subnet-routes=false`).
+
+Comandos útiles (como `sysadmin`, con `sudo`):
+
+```bash
+fail2ban-client status sshd                    # IPs baneadas y fallos recientes
+fail2ban-client set sshd unbanip 10.10.30.50   # desbanear
+nft list ruleset                               # firewall + tabla de fail2ban
+sshd -T | grep -E 'allowgroups|kexalgorithms'  # configuración efectiva de SSH
+```
+
+Para abrir otro puerto, agregarlo a `firewall_allowed_tcp_ports` (por grupo o por host) y volver a correr `linux.yml`.
+
+### Linux en el dominio (`linux.yml`, rol `linux_realm_join`)
 
 - Instala realmd, SSSD, adcli, Kerberos, chrony y qemu-guest-agent.
 - chrony sincroniza con los DCs (Kerberos falla con más de 5 minutos de diferencia).

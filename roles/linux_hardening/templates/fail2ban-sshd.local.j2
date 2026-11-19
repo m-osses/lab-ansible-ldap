@@ -1,0 +1,18 @@
+# Gestionado por Ansible (linux_hardening)
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1 {{ fail2ban_ignoreip | join(' ') }}
+bantime = {{ fail2ban_bantime }}
+# Cada reincidencia duplica el baneo, hasta una semana
+bantime.increment = true
+bantime.maxtime = 1w
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+
+[sshd]
+enabled = true
+# Debian 13 no tiene /var/log/auth.log: los logs de sshd están en journald
+backend = systemd
+# También cuenta conexiones que cortan sin autenticar y escaneos de algoritmos
+mode = aggressive
