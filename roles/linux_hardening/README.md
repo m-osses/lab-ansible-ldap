@@ -2,7 +2,7 @@
 
 Buenas prácticas de seguridad para los servidores Debian del lab. Se aplica a todo el grupo `linux` desde `playbooks/linux.yml`, **antes** de `linux_realm_join`, así que también cubre a los Linux que no se unen al dominio.
 
-Probado contra Debian 13 (OpenSSH 10.0, fail2ban 1.1, nftables 1.1).
+Escrito para Debian 13 (OpenSSH 10.0, fail2ban 1.1, nftables 1.1). La configuración de SSH se validó contra linux01; el rol completo todavía no se aplicó.
 
 ## Qué toca
 
